@@ -1,6 +1,6 @@
-# DuXiu SSID Decoder
+# DuXiu iid v3 Decoder
 
-This repository contains a compact offline codebook and a build script for a userscript that decodes DuXiu/Chaoxing-style cover `iid` values into 8-digit SSIDs.
+This repository contains a compact offline codebook and a build script for a userscript that decodes DuXiu/Chaoxing-style cover `iid` v3 values into 8-digit SSIDs.
 
 The decoder supports the observed `iid` v3 formats:
 
@@ -9,7 +9,7 @@ The decoder supports the observed `iid` v3 formats:
 
 ## Files
 
-- `build_duxiu_ssid_userscript.py` embeds the compact codebook payload into the userscript template.
+- `build_iid_v3_userscript.py` embeds the compact codebook payload into the userscript template.
 - `userscript.template.js` contains the editable userscript source without the generated codebook payload.
 - `codebook/3digit_selector6_codebook.tsv` stores the 6-hex selectors for the first and middle 3-digit SSID parts.
 - `codebook/2digit_selector5_codebook.tsv` stores the 5-hex selectors for the final 2-digit SSID part.
@@ -18,10 +18,10 @@ The decoder supports the observed `iid` v3 formats:
 ## Build
 
 ```powershell
-python .\build_duxiu_ssid_userscript.py --output .\duxiu-ssid.user.js
+python .\build_iid_v3_userscript.py --output .\duxiu-iid-v3-decoder.user.js
 ```
 
-The generated `duxiu-ssid.user.js` can be installed locally in a userscript manager or uploaded manually as a release artifact. Edit `userscript.template.js` for UI or metadata changes, then rebuild.
+The generated `duxiu-iid-v3-decoder.user.js` can be installed locally in a userscript manager or uploaded manually as a release artifact. Edit `userscript.template.js` for UI or metadata changes, then rebuild.
 
 ## Notes
 

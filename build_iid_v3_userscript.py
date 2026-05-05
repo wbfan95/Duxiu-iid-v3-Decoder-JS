@@ -9,7 +9,7 @@ from typing import Any
 
 DEFAULT_CODEBOOK_DIR = Path("codebook")
 DEFAULT_TEMPLATE = Path("userscript.template.js")
-DEFAULT_OUTPUT = Path("duxiu-ssid.user.js")
+DEFAULT_OUTPUT = Path("duxiu-iid-v3-decoder.user.js")
 PAYLOAD_PLACEHOLDER = "__PAYLOAD_JSON__"
 
 
@@ -67,7 +67,7 @@ def render_userscript(payload: dict[str, Any], template_path: Path) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build a DuXiu SSID decoder userscript.")
+    parser = argparse.ArgumentParser(description="Build a DuXiu iid v3 decoder userscript.")
     parser.add_argument("--codebook-dir", type=Path, default=DEFAULT_CODEBOOK_DIR)
     parser.add_argument("--template", type=Path, default=DEFAULT_TEMPLATE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)

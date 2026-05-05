@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         DuXiu SSID Decoder
+// @name         DuXiu iid v3 Decoder
 // @author       Wenbin Fan
-// @namespace    https://local.duxiu.ssid/
+// @namespace    https://github.com/wbfan95/duxiu-iid-v3-decoder
 // @version      0.1.0
 // @description  Decode 128/144-hex DuXiu-style cover iid to SSID and show it under the cover image.
 // @match        *://*.duxiu.com/*
@@ -19,8 +19,8 @@
 (function () {
   "use strict";
 
-  const LABEL_CLASS = "duxiu-ssid-decoder-label";
-  const PROCESSED_ATTR = "data-duxiu-ssid-iid";
+  const LABEL_CLASS = "duxiu-iid-v3-decoder-label";
+  const PROCESSED_ATTR = "data-duxiu-iid-v3-processed";
   const IMAGE_URL_ATTRS = ["src", "data-src", "data-original", "original"];
   const SHOW_UNRESOLVED = true;
   const RESOLVED_TITLE = "点击复制 SSID";
@@ -64,11 +64,11 @@
   }
 
   function injectStyle() {
-    if (document.getElementById("duxiu-ssid-decoder-style")) {
+    if (document.getElementById("duxiu-iid-v3-decoder-style")) {
       return;
     }
     const style = document.createElement("style");
-    style.id = "duxiu-ssid-decoder-style";
+    style.id = "duxiu-iid-v3-decoder-style";
     style.textContent = `
       .${LABEL_CLASS} {
         display: block;
@@ -279,7 +279,7 @@
   }
 
   function bootstrap(runtime) {
-    window.__duxiuSsidDecoderRuntime = runtime;
+    window.__duxiuIidV3DecoderRuntime = runtime;
     injectStyle();
     scanDocument();
     observeDocument();

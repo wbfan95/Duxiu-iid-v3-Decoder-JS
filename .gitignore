@@ -6,5 +6,5 @@ __pycache__/
 *.tsv.tmp
 probe_outputs/
 
-# Generated release artifact. Build it with build_duxiu_ssid_userscript.py.
-duxiu-ssid.user.js
+# Generated release artifact. Build it with build_iid_v3_userscript.py.
+duxiu-iid-v3-decoder.user.js
