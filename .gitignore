@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+
+# Local source datasets and probes are intentionally not part of this release repo.
+*.csv
+*.tsv.tmp
+probe_outputs/
+
+# Generated release artifact. Build it with build_duxiu_ssid_userscript.py.
+duxiu-ssid.user.js
