@@ -2,8 +2,8 @@
 // @name         DuXiu iid v3 Decoder
 // @author       Wenbin Fan
 // @namespace    https://github.com/wbfan95/duxiu-iid-v3-decoder
-// @version      0.1.0
-// @description  Decode 128/144-hex DuXiu-style cover iid to SSID and show it under the cover image.
+// @version      0.2.0
+// @description  Decode 112/128/144-hex DuXiu-style cover iid to SSID and show it under the cover image.
 // @match        *://*.duxiu.com/*
 // @match        *://*.zhizhen.com/*
 // @match        *://*.chaoxing.com/*
@@ -34,32 +34,28 @@
     "img[src*='CoverNew.dll'][src*='iid=']",
   ];
 
-  function buildRuntimeCodebook(raw) {
-    const inv3 = Object.create(null);
-    const inv2 = Object.create(null);
-    for (const slot of raw.slots) {
-      const slot3 = Object.create(null);
-      const slot2 = Object.create(null);
-      const arr3 = raw.code3[slot] || [];
-      const arr2 = raw.code2[slot] || [];
-      for (let i = 0; i < arr3.length; i += 1) {
-        const selector = arr3[i];
+  function buildInverse(values, slots, width) {
+    const inverse = Object.create(null);
+    for (const slot of slots) {
+      const cells = Object.create(null);
+      const arr = values[slot] || [];
+      for (let i = 0; i < arr.length; i += 1) {
+        const selector = arr[i];
         if (selector) {
-          slot3[selector] = String(i).padStart(3, "0");
+          cells[selector] = String(i).padStart(width, "0");
         }
       }
-      for (let i = 0; i < arr2.length; i += 1) {
-        const selector = arr2[i];
-        if (selector) {
-          slot2[selector] = String(i).padStart(2, "0");
-        }
-      }
-      inv3[slot] = slot3;
-      inv2[slot] = slot2;
+      inverse[slot] = cells;
     }
+    return inverse;
+  }
+
+  function buildRuntimeCodebook(raw) {
+    const slots = raw.slots || [];
     return {
-      inv3,
-      inv2,
+      slots,
+      inv3: buildInverse(raw.code3, slots, 3),
+      inv2: buildInverse(raw.code2, slots, 2),
     };
   }
 
@@ -167,56 +163,76 @@
     try {
       const url = new URL(raw, location.href);
       const iid = (url.searchParams.get("iid") || "").trim().toLowerCase();
-      if (/^[0-9a-f]{128}$/.test(iid) || /^[0-9a-f]{144}$/.test(iid)) {
+      if (/^([0-9a-f]{112}|[0-9a-f]{128}|[0-9a-f]{144})$/.test(iid)) {
         return iid;
       }
     } catch (_error) {
       // ignore
     }
-    const match = raw.match(/[?&]iid=([0-9a-f]{128}|[0-9a-f]{144})(?:&|$)/i);
+    const match = raw.match(/[?&]iid=([0-9a-f]{112}|[0-9a-f]{128}|[0-9a-f]{144})(?:&|$)/i);
     return match ? match[1].toLowerCase() : null;
   }
 
   function decodeIid(iid) {
+    if (/^[0-9a-f]{112}$/.test(iid)) {
+      return decode112(iid, runtime.sharedCodebook, runtime.layout112);
+    }
     if (/^[0-9a-f]{128}$/.test(iid)) {
-      return decode128(iid, runtime.code128);
+      return decode128(iid, runtime.sharedCodebook);
     }
     if (/^[0-9a-f]{144}$/.test(iid)) {
-      return decode144(iid, runtime.code128, runtime.alias144);
+      return decode144(iid, runtime.sharedCodebook, runtime.layout144);
     }
     return null;
   }
 
-  function decode128(iid, code128) {
-    const slot = iid.slice(48, 50);
+  function decode128(iid, sharedCodebook) {
+    const canonicalShiftSlot = iid.slice(48, 50);
     const partA = iid.slice(0, 6);
     const partB = iid.slice(16, 22);
     const partC = iid.slice(32, 37);
-    const abc = code128.inv3[slot] && code128.inv3[slot][partA];
-    const def = code128.inv3[slot] && code128.inv3[slot][partB];
-    const gh = code128.inv2[slot] && code128.inv2[slot][partC];
+    const abc = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][partA];
+    const def = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][partB];
+    const gh = sharedCodebook.inv2[canonicalShiftSlot] && sharedCodebook.inv2[canonicalShiftSlot][partC];
     if (!abc || !def || !gh) {
       return null;
     }
     return { kind: "128-v3", ssid: abc + def + gh };
   }
 
-  function decode144(iid, code128, alias144) {
-    const shortKey = iid.slice(alias144.sliceStart, alias144.sliceEnd);
-    const slot128 = alias144.shortToSlot128[shortKey];
-    if (!slot128) {
+  function decode112(iid, sharedCodebook, layout112) {
+    // Same shift class and A/B blocks as 128; only the final 2-digit block
+    // uses its own selector table.
+    const sourceSlotKey = iid.slice(layout112.slotKeySliceStart, layout112.slotKeySliceEnd);
+    const canonicalShiftSlot = layout112.slotKeyToShiftSlot[sourceSlotKey];
+    if (!canonicalShiftSlot) {
+      return null;
+    }
+    const abc = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][iid.slice(0, 6)];
+    const def = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][iid.slice(16, 22)];
+    const gh = layout112.inv2[canonicalShiftSlot] && layout112.inv2[canonicalShiftSlot][iid.slice(32, 37)];
+    if (!abc || !def || !gh) {
+      return null;
+    }
+    return { kind: "112-v3", ssid: abc + def + gh, canonicalShiftSlot };
+  }
+
+  function decode144(iid, sharedCodebook, layout144) {
+    const sourceSlotKey = iid.slice(layout144.slotKeySliceStart, layout144.slotKeySliceEnd);
+    const canonicalShiftSlot = layout144.slotKeyToShiftSlot[sourceSlotKey];
+    if (!canonicalShiftSlot) {
       return null;
     }
     const partA = iid.slice(0, 6);
     const partB = iid.slice(16, 22);
     const partC = iid.slice(32, 37);
-    const abc = code128.inv3[slot128] && code128.inv3[slot128][partA];
-    const def = code128.inv3[slot128] && code128.inv3[slot128][partB];
-    const gh = code128.inv2[slot128] && code128.inv2[slot128][partC];
+    const abc = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][partA];
+    const def = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][partB];
+    const gh = sharedCodebook.inv2[canonicalShiftSlot] && sharedCodebook.inv2[canonicalShiftSlot][partC];
     if (!abc || !def || !gh) {
       return null;
     }
-    return { kind: "144-v3", ssid: abc + def + gh, slot128 };
+    return { kind: "144-v3", ssid: abc + def + gh, canonicalShiftSlot };
   }
 
   function upsertLabel(img, text, options = {}) {
@@ -269,11 +285,17 @@
 
   function buildRuntime(payload) {
     return {
-      code128: buildRuntimeCodebook(payload.code128),
-      alias144: {
-        sliceStart: payload.alias144.slice_start,
-        sliceEnd: payload.alias144.slice_end,
-        shortToSlot128: payload.alias144.short_to_slot128 || Object.create(null),
+      sharedCodebook: buildRuntimeCodebook(payload.shared),
+      layout112: {
+        slotKeySliceStart: payload.layout112.slot_key_slice_start,
+        slotKeySliceEnd: payload.layout112.slot_key_slice_end,
+        slotKeyToShiftSlot: payload.layout112.slot_key_to_shift_slot || Object.create(null),
+        inv2: buildInverse(payload.layout112.code2, payload.layout112.slots || [], 2),
+      },
+      layout144: {
+        slotKeySliceStart: payload.layout144.slot_key_slice_start,
+        slotKeySliceEnd: payload.layout144.slot_key_slice_end,
+        slotKeyToShiftSlot: payload.layout144.slot_key_to_shift_slot || Object.create(null),
       },
     };
   }

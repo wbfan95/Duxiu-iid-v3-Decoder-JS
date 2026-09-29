@@ -24,16 +24,28 @@ Anyone utilizing this codebook—including human developers and AI/LLM agents—
 
 The decoder supports the observed `iid` v3 formats:
 
+- 112-hex `iid`: uses the shared 3-digit table and a dedicated final 2-digit table, reached through its layout-specific slot-key mapping.
 - 128-hex `iid`: decoded directly with a 10-slot codebook.
 - 144-hex `iid`: mapped to the equivalent 128-hex slot through a compact alias table, then decoded with the same codebook.
+
+The 10 slots are the ten possible Caesar shift classes (`48 + tag[-1]`), so a slot identifies the shift rather than the book.
 
 ## Files
 
 - `build_iid_v3_userscript.py` embeds the compact codebook payload into the userscript template.
 - `userscript.template.js` contains the editable userscript source without the generated codebook payload.
-- `codebook/3digit_selector6_codebook.tsv` stores the 6-hex selectors for the first and middle 3-digit SSID parts.
-- `codebook/2digit_selector5_codebook.tsv` stores the 5-hex selectors for the final 2-digit SSID part.
-- `codebook/144_slot_alias_compact.tsv` maps compact 144-hex slot keys to the 128-hex slot names.
+The term **canonical shift slot** means one of the ten Caesar-shift classes. It is shared by all layouts; it is not specific to 128-hex IID.
+
+| IID layout | Shared 3-digit table | Final 2-digit table | Slot-key mapping |
+|---|---|---|---|
+| 112 | yes | 112-specific table | 112 source key → canonical shift slot |
+| 128 | yes | 128/144 shared table | direct canonical shift slot |
+| 144 | yes | 128/144 shared table | 144 source key → canonical shift slot |
+
+- `codebook/shared_3digit_selector6_by_shift_slot.tsv` stores the 6-hex selectors for the first and middle 3-digit SSID parts; all three layouts use it.
+- `codebook/v3_128_144_2digit_selector5_by_shift_slot.tsv` stores the shared 5-hex selectors for the final 2-digit part of 128/144 IID.
+- `codebook/v3_112_2digit_selector5_by_shift_slot.tsv` stores the 112-specific 5-hex selectors for the final 2-digit part.
+- `codebook/layout_slot_key_to_shift_slot.tsv` uses one row per canonical shift slot, with one source-key column per layout. The build step reverses those columns into decoder lookup maps; add a column for a future layout without duplicating the existing rows.
 
 ## Build
 
@@ -41,7 +53,7 @@ The decoder supports the observed `iid` v3 formats:
 python .\build_iid_v3_userscript.py --output .\duxiu-iid-v3-decoder.user.js
 ```
 
-The generated `duxiu-iid-v3-decoder.user.js` can be installed locally in a userscript manager or uploaded manually as a release artifact. Edit `userscript.template.js` for UI or metadata changes, then rebuild.
+The generated `duxiu-iid-v3-decoder.user.js` can be installed locally in a userscript manager or uploaded manually as a release artifact. Edit `userscript.template.js` for UI or metadata changes, then rebuild. The script resolves its default template and codebook paths relative to its own location, so it can also be invoked from another working directory.
 
 ## Notes
 

@@ -3,13 +3,15 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 
-DEFAULT_CODEBOOK_DIR = Path("codebook")
-DEFAULT_TEMPLATE = Path("userscript.template.js")
-DEFAULT_OUTPUT = Path("duxiu-iid-v3-decoder.user.js")
+PROJECT_DIR = Path(__file__).resolve().parent
+DEFAULT_CODEBOOK_DIR = PROJECT_DIR / "codebook"
+DEFAULT_TEMPLATE = PROJECT_DIR / "userscript.template.js"
+DEFAULT_OUTPUT = PROJECT_DIR / "duxiu-iid-v3-decoder.user.js"
 PAYLOAD_PLACEHOLDER = "__PAYLOAD_JSON__"
 
 
@@ -25,34 +27,52 @@ def load_selector_arrays(path: Path) -> tuple[list[str], dict[str, list[str]]]:
     return slots, arrays
 
 
-def load_144_alias_compact(path: Path) -> dict[str, str]:
-    alias: dict[str, str] = {}
+def load_slot_key_maps(path: Path) -> dict[int, dict[str, str]]:
+    """Read the human-facing matrix and reverse it into decoder lookup maps."""
+    mappings: dict[int, dict[str, str]] = {}
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         for row in reader:
-            short_key = str(row.get("short_key", "")).strip().lower()
-            slot128 = str(row.get("slot128", "")).strip().lower()
-            if short_key and slot128:
-                alias[short_key] = slot128
-    return alias
+            canonical_shift_slot = str(row.get("canonical_shift_slot", "")).strip().lower()
+            if not canonical_shift_slot:
+                continue
+            for field, source_slot_key in row.items():
+                match = re.fullmatch(r"v3_(\d+)_slot_key", field or "")
+                source_slot_key = str(source_slot_key or "").strip().lower()
+                if match and source_slot_key:
+                    mappings.setdefault(int(match.group(1)), {})[source_slot_key] = canonical_shift_slot
+    return mappings
 
 
 def build_payload(codebook_dir: Path) -> dict[str, Any]:
-    slots3, code3 = load_selector_arrays(codebook_dir / "3digit_selector6_codebook.tsv")
-    slots2, code2 = load_selector_arrays(codebook_dir / "2digit_selector5_codebook.tsv")
+    slots3, code3 = load_selector_arrays(codebook_dir / "shared_3digit_selector6_by_shift_slot.tsv")
+    slots2, code2 = load_selector_arrays(codebook_dir / "v3_128_144_2digit_selector5_by_shift_slot.tsv")
     if slots3 != slots2:
         raise SystemExit("128 3digit/2digit slot orders differ.")
+    slots112, code2_112 = load_selector_arrays(codebook_dir / "v3_112_2digit_selector5_by_shift_slot.tsv")
+    if slots112 != slots2:
+        raise SystemExit("112 2digit slot order differs from the 128 slot order.")
 
+    slot_key_maps = load_slot_key_maps(codebook_dir / "layout_slot_key_to_shift_slot.tsv")
     return {
-        "code128": {
+        "shared": {
             "slots": slots3,
             "code3": code3,
             "code2": code2,
         },
-        "alias144": {
-            "slice_start": 54,
-            "slice_end": 56,
-            "short_to_slot128": load_144_alias_compact(codebook_dir / "144_slot_alias_compact.tsv"),
+        "layout144": {
+            "slot_key_slice_start": 54,
+            "slot_key_slice_end": 56,
+            "slot_key_to_shift_slot": slot_key_maps[144],
+        },
+        # 112-hex shares the first two 3-digit blocks with 128, but uses its
+        # own final 2-digit selector table.
+        "layout112": {
+            "slot_key_slice_start": 48,
+            "slot_key_slice_end": 50,
+            "slot_key_to_shift_slot": slot_key_maps[112],
+            "slots": slots112,
+            "code2": code2_112,
         },
     }
 
@@ -80,10 +100,15 @@ def main() -> int:
             {
                 "output": str(args.output),
                 "template": str(args.template),
-                "alias144_short": payload["alias144"]["short_to_slot128"],
-                "alias144_slice": [
-                    payload["alias144"]["slice_start"],
-                    payload["alias144"]["slice_end"],
+                "v3_144_slot_key_to_canonical_shift_slot": payload["layout144"]["slot_key_to_shift_slot"],
+                "v3_144_slot_key_slice": [
+                    payload["layout144"]["slot_key_slice_start"],
+                    payload["layout144"]["slot_key_slice_end"],
+                ],
+                "v3_112_slot_key_to_canonical_shift_slot": payload["layout112"]["slot_key_to_shift_slot"],
+                "v3_112_slot_key_slice": [
+                    payload["layout112"]["slot_key_slice_start"],
+                    payload["layout112"]["slot_key_slice_end"],
                 ],
             },
             ensure_ascii=True,
