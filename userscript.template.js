@@ -55,7 +55,6 @@
     return {
       slots,
       inv3: buildInverse(raw.code3, slots, 3),
-      inv2: buildInverse(raw.code2, slots, 2),
     };
   }
 
@@ -174,65 +173,34 @@
   }
 
   function decodeIid(iid) {
-    if (/^[0-9a-f]{112}$/.test(iid)) {
-      return decode112(iid, runtime.sharedCodebook, runtime.layout112);
-    }
-    if (/^[0-9a-f]{128}$/.test(iid)) {
-      return decode128(iid, runtime.sharedCodebook);
-    }
-    if (/^[0-9a-f]{144}$/.test(iid)) {
-      return decode144(iid, runtime.sharedCodebook, runtime.layout144);
+    for (const profile of runtime.profiles) {
+      if (iid.length !== profile.iidHexLength) {
+        continue;
+      }
+      const decoded = decodeWithProfile(iid, runtime.sharedCodebook, runtime.final2DigitCodebooks, profile);
+      if (decoded) {
+        return decoded;
+      }
     }
     return null;
   }
 
-  function decode128(iid, sharedCodebook) {
-    const canonicalShiftSlot = iid.slice(48, 50);
-    const partA = iid.slice(0, 6);
-    const partB = iid.slice(16, 22);
-    const partC = iid.slice(32, 37);
-    const abc = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][partA];
-    const def = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][partB];
-    const gh = sharedCodebook.inv2[canonicalShiftSlot] && sharedCodebook.inv2[canonicalShiftSlot][partC];
-    if (!abc || !def || !gh) {
-      return null;
-    }
-    return { kind: "128-v3", ssid: abc + def + gh };
-  }
-
-  function decode112(iid, sharedCodebook, layout112) {
-    // Same shift class and A/B blocks as 128; only the final 2-digit block
-    // uses its own selector table.
-    const sourceSlotKey = iid.slice(layout112.slotKeySliceStart, layout112.slotKeySliceEnd);
-    const canonicalShiftSlot = layout112.slotKeyToShiftSlot[sourceSlotKey];
+  function decodeWithProfile(iid, sharedCodebook, final2DigitCodebooks, profile) {
+    const sourceSlotKey = iid.slice(profile.slotKeySliceStart, profile.slotKeySliceEnd);
+    const canonicalShiftSlot = profile.directSlot
+      ? sourceSlotKey
+      : profile.slotKeyToShiftSlot[sourceSlotKey];
     if (!canonicalShiftSlot) {
       return null;
     }
+    const final2DigitCodebook = final2DigitCodebooks[profile.final2DigitTable];
     const abc = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][iid.slice(0, 6)];
     const def = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][iid.slice(16, 22)];
-    const gh = layout112.inv2[canonicalShiftSlot] && layout112.inv2[canonicalShiftSlot][iid.slice(32, 37)];
+    const gh = final2DigitCodebook[canonicalShiftSlot] && final2DigitCodebook[canonicalShiftSlot][iid.slice(32, 37)];
     if (!abc || !def || !gh) {
       return null;
     }
-    return { kind: "112-v3", ssid: abc + def + gh, canonicalShiftSlot };
-  }
-
-  function decode144(iid, sharedCodebook, layout144) {
-    const sourceSlotKey = iid.slice(layout144.slotKeySliceStart, layout144.slotKeySliceEnd);
-    const canonicalShiftSlot = layout144.slotKeyToShiftSlot[sourceSlotKey];
-    if (!canonicalShiftSlot) {
-      return null;
-    }
-    const partA = iid.slice(0, 6);
-    const partB = iid.slice(16, 22);
-    const partC = iid.slice(32, 37);
-    const abc = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][partA];
-    const def = sharedCodebook.inv3[canonicalShiftSlot] && sharedCodebook.inv3[canonicalShiftSlot][partB];
-    const gh = sharedCodebook.inv2[canonicalShiftSlot] && sharedCodebook.inv2[canonicalShiftSlot][partC];
-    if (!abc || !def || !gh) {
-      return null;
-    }
-    return { kind: "144-v3", ssid: abc + def + gh, canonicalShiftSlot };
+    return { kind: profile.kind, ssid: abc + def + gh, canonicalShiftSlot };
   }
 
   function upsertLabel(img, text, options = {}) {
@@ -286,17 +254,21 @@
   function buildRuntime(payload) {
     return {
       sharedCodebook: buildRuntimeCodebook(payload.shared),
-      layout112: {
-        slotKeySliceStart: payload.layout112.slot_key_slice_start,
-        slotKeySliceEnd: payload.layout112.slot_key_slice_end,
-        slotKeyToShiftSlot: payload.layout112.slot_key_to_shift_slot || Object.create(null),
-        inv2: buildInverse(payload.layout112.code2, payload.layout112.slots || [], 2),
-      },
-      layout144: {
-        slotKeySliceStart: payload.layout144.slot_key_slice_start,
-        slotKeySliceEnd: payload.layout144.slot_key_slice_end,
-        slotKeyToShiftSlot: payload.layout144.slot_key_to_shift_slot || Object.create(null),
-      },
+      final2DigitCodebooks: Object.fromEntries(
+        Object.entries(payload.final_2digit_tables).map(([name, table]) => [
+          name,
+          buildInverse(table.code2, table.slots || [], 2),
+        ])
+      ),
+      profiles: payload.profiles.map((profile) => ({
+        kind: profile.kind,
+        iidHexLength: profile.iid_hex_length,
+        slotKeySliceStart: profile.slot_key_slice_start,
+        slotKeySliceEnd: profile.slot_key_slice_end,
+        directSlot: Boolean(profile.direct_slot),
+        final2DigitTable: profile.final_2digit_table,
+        slotKeyToShiftSlot: profile.slot_key_to_shift_slot || Object.create(null),
+      })),
     };
   }
 

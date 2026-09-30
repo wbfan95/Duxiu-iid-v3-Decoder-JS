@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +12,22 @@ DEFAULT_CODEBOOK_DIR = PROJECT_DIR / "codebook"
 DEFAULT_TEMPLATE = PROJECT_DIR / "userscript.template.js"
 DEFAULT_OUTPUT = PROJECT_DIR / "duxiu-iid-v3-decoder.user.js"
 PAYLOAD_PLACEHOLDER = "__PAYLOAD_JSON__"
+
+# Profiles are ordered by preference. A profile either reads the canonical slot
+# directly or maps a layout-specific source key to that slot, then reuses the
+# named final 2-digit selector table.
+DECODE_PROFILES = (
+    {"kind": "128-v3", "iid_hex_length": 128, "slot_key_slice_start": 48, "slot_key_slice_end": 50,
+     "direct_slot": True, "final_2digit_table": "primary"},
+    {"kind": "128-v3-fallback-a", "iid_hex_length": 128, "slot_key_slice_start": 48, "slot_key_slice_end": 50,
+     "slot_key_column": "v3_128_fallback_a_slot_key", "final_2digit_table": "fallback"},
+    {"kind": "128-v3-fallback-b", "iid_hex_length": 128, "slot_key_slice_start": 48, "slot_key_slice_end": 50,
+     "slot_key_column": "v3_128_fallback_b_slot_key", "final_2digit_table": "primary"},
+    {"kind": "112-v3", "iid_hex_length": 112, "slot_key_slice_start": 48, "slot_key_slice_end": 50,
+     "slot_key_column": "v3_112_slot_key", "final_2digit_table": "fallback"},
+    {"kind": "144-v3", "iid_hex_length": 144, "slot_key_slice_start": 54, "slot_key_slice_end": 56,
+     "slot_key_column": "v3_144_slot_key", "final_2digit_table": "primary"},
+)
 
 
 def load_selector_arrays(path: Path) -> tuple[list[str], dict[str, list[str]]]:
@@ -27,9 +42,9 @@ def load_selector_arrays(path: Path) -> tuple[list[str], dict[str, list[str]]]:
     return slots, arrays
 
 
-def load_slot_key_maps(path: Path) -> dict[int, dict[str, str]]:
+def load_slot_key_maps(path: Path) -> dict[str, dict[str, str]]:
     """Read the human-facing matrix and reverse it into decoder lookup maps."""
-    mappings: dict[int, dict[str, str]] = {}
+    mappings: dict[str, dict[str, str]] = {}
     with path.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         for row in reader:
@@ -37,19 +52,18 @@ def load_slot_key_maps(path: Path) -> dict[int, dict[str, str]]:
             if not canonical_shift_slot:
                 continue
             for field, source_slot_key in row.items():
-                match = re.fullmatch(r"v3_(\d+)_slot_key", field or "")
                 source_slot_key = str(source_slot_key or "").strip().lower()
-                if match and source_slot_key:
-                    mappings.setdefault(int(match.group(1)), {})[source_slot_key] = canonical_shift_slot
+                if field and field != "canonical_shift_slot" and field.endswith("_slot_key") and source_slot_key:
+                    mappings.setdefault(field, {})[source_slot_key] = canonical_shift_slot
     return mappings
 
 
 def build_payload(codebook_dir: Path) -> dict[str, Any]:
     slots3, code3 = load_selector_arrays(codebook_dir / "shared_3digit_selector6_by_shift_slot.tsv")
-    slots2, code2 = load_selector_arrays(codebook_dir / "v3_128_144_2digit_selector5_by_shift_slot.tsv")
+    slots2, code2 = load_selector_arrays(codebook_dir / "final_2digit_primary_selector5_by_shift_slot.tsv")
     if slots3 != slots2:
         raise SystemExit("128 3digit/2digit slot orders differ.")
-    slots112, code2_112 = load_selector_arrays(codebook_dir / "v3_112_2digit_selector5_by_shift_slot.tsv")
+    slots112, code2_112 = load_selector_arrays(codebook_dir / "final_2digit_fallback_selector5_by_shift_slot.tsv")
     if slots112 != slots2:
         raise SystemExit("112 2digit slot order differs from the 128 slot order.")
 
@@ -58,22 +72,15 @@ def build_payload(codebook_dir: Path) -> dict[str, Any]:
         "shared": {
             "slots": slots3,
             "code3": code3,
-            "code2": code2,
         },
-        "layout144": {
-            "slot_key_slice_start": 54,
-            "slot_key_slice_end": 56,
-            "slot_key_to_shift_slot": slot_key_maps[144],
+        "final_2digit_tables": {
+            "primary": {"slots": slots2, "code2": code2},
+            "fallback": {"slots": slots112, "code2": code2_112},
         },
-        # 112-hex shares the first two 3-digit blocks with 128, but uses its
-        # own final 2-digit selector table.
-        "layout112": {
-            "slot_key_slice_start": 48,
-            "slot_key_slice_end": 50,
-            "slot_key_to_shift_slot": slot_key_maps[112],
-            "slots": slots112,
-            "code2": code2_112,
-        },
+        "profiles": [
+            {**profile, "slot_key_to_shift_slot": slot_key_maps.get(profile.get("slot_key_column", ""), {})}
+            for profile in DECODE_PROFILES
+        ],
     }
 
 
@@ -100,15 +107,9 @@ def main() -> int:
             {
                 "output": str(args.output),
                 "template": str(args.template),
-                "v3_144_slot_key_to_canonical_shift_slot": payload["layout144"]["slot_key_to_shift_slot"],
-                "v3_144_slot_key_slice": [
-                    payload["layout144"]["slot_key_slice_start"],
-                    payload["layout144"]["slot_key_slice_end"],
-                ],
-                "v3_112_slot_key_to_canonical_shift_slot": payload["layout112"]["slot_key_to_shift_slot"],
-                "v3_112_slot_key_slice": [
-                    payload["layout112"]["slot_key_slice_start"],
-                    payload["layout112"]["slot_key_slice_end"],
+                "profiles": [
+                    {key: value for key, value in profile.items() if key != "slot_key_to_shift_slot"}
+                    for profile in payload["profiles"]
                 ],
             },
             ensure_ascii=True,

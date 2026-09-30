@@ -27,6 +27,7 @@ The decoder supports the observed `iid` v3 formats:
 - 112-hex `iid`: uses the shared 3-digit table and a dedicated final 2-digit table, reached through its layout-specific slot-key mapping.
 - 128-hex `iid`: decoded directly with a 10-slot codebook.
 - 144-hex `iid`: mapped to the equivalent 128-hex slot through a compact alias table, then decoded with the same codebook.
+- Additional 128-hex framing variants are represented as ordered fallback profiles. They reuse existing selector tables and add only source-slot-key columns to the shared mapping matrix.
 
 The 10 slots are the ten possible Caesar shift classes (`48 + tag[-1]`), so a slot identifies the shift rather than the book.
 
@@ -41,11 +42,12 @@ The term **canonical shift slot** means one of the ten Caesar-shift classes. It 
 | 112 | yes | 112-specific table | 112 source key → canonical shift slot |
 | 128 | yes | 128/144 shared table | direct canonical shift slot |
 | 144 | yes | 128/144 shared table | 144 source key → canonical shift slot |
+| 128 fallback profiles | yes | primary or fallback table | source key → canonical shift slot |
 
 - `codebook/shared_3digit_selector6_by_shift_slot.tsv` stores the 6-hex selectors for the first and middle 3-digit SSID parts; all three layouts use it.
-- `codebook/v3_128_144_2digit_selector5_by_shift_slot.tsv` stores the shared 5-hex selectors for the final 2-digit part of 128/144 IID.
-- `codebook/v3_112_2digit_selector5_by_shift_slot.tsv` stores the 112-specific 5-hex selectors for the final 2-digit part.
-- `codebook/layout_slot_key_to_shift_slot.tsv` uses one row per canonical shift slot, with one source-key column per layout. The build step reverses those columns into decoder lookup maps; add a column for a future layout without duplicating the existing rows.
+- `codebook/final_2digit_primary_selector5_by_shift_slot.tsv` stores the primary 5-hex selector table for the final 2-digit part.
+- `codebook/final_2digit_fallback_selector5_by_shift_slot.tsv` stores the alternate final 2-digit selector table used by fallback profiles.
+- `codebook/layout_slot_key_to_shift_slot.tsv` uses one row per canonical shift slot, with one source-key column per layout or variant. The build step reverses those columns into decoder lookup maps; add a column for a future layout without duplicating the existing rows.
 
 ## Build
 
