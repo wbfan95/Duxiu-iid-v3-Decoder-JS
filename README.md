@@ -46,7 +46,8 @@ The term **canonical shift slot** means one of the ten Caesar-shift classes. It 
 
 - `codebook/shared_3digit_selector6_by_shift_slot.tsv` stores the 6-hex selectors for the first and middle 3-digit SSID parts; all three layouts use it.
 - `codebook/final_2digit_primary_selector5_by_shift_slot.tsv` stores the primary 5-hex selector table for the final 2-digit part.
-- `codebook/final_2digit_fallback_selector5_by_shift_slot.tsv` stores the alternate final 2-digit selector table used by fallback profiles.
+- `codebook/final_2digit_fallback_selector5_by_shift_slot.tsv` stores an alternate final 2-digit selector table used by fallback profiles.
+- `codebook/final_2digit_fallback_c_selector5_by_shift_slot.tsv` stores the final 2-digit selector table for another fallback profile.
 - `codebook/layout_slot_key_to_shift_slot.tsv` uses one row per canonical shift slot, with one source-key column per layout or variant. The build step reverses those columns into decoder lookup maps; add a column for a future layout without duplicating the existing rows.
 
 ## Build

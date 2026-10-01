@@ -1,11 +1,11 @@
-canonical_shift_slot	v3_112_slot_key	v3_144_slot_key	v3_128_fallback_a_slot_key	v3_128_fallback_b_slot_key
-24	74	30	21	e3
-25	47	77	17	62
-4f	1b	f8	8b	df
-5c	60	63	3b	ef
-73	14	ef	69	a2
-8a	69	4f	b4	95
-c1	3c	05	72	f0
-d7	dd	1d	6c	56
-e2	9d	95	64	46
-e3	e2	81	99	1b
+canonical_shift_slot	v3_112_slot_key	v3_144_slot_key	v3_128_fallback_a_slot_key	v3_128_fallback_b_slot_key	v3_128_fallback_c_slot_key
+24	74	30	21	e3	89
+25	47	77	17	62	3e
+4f	1b	f8	8b	df	c7
+5c	60	63	3b	ef	23
+73	14	ef	69	a2	43
+8a	69	4f	b4	95	05
+c1	3c	05	72	f0	35
+d7	dd	1d	6c	56	40
+e2	9d	95	64	46	56
+e3	e2	81	99	1b	9b

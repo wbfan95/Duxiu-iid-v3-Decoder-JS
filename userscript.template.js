@@ -2,7 +2,7 @@
 // @name         DuXiu iid v3 Decoder
 // @author       Wenbin Fan
 // @namespace    https://github.com/wbfan95/duxiu-iid-v3-decoder
-// @version      0.2.0
+// @version      0.3.0
 // @description  Decode 112/128/144-hex DuXiu-style cover iid to SSID and show it under the cover image.
 // @match        *://*.duxiu.com/*
 // @match        *://*.zhizhen.com/*
@@ -55,6 +55,7 @@
     return {
       slots,
       inv3: buildInverse(raw.code3, slots, 3),
+      inv2: buildInverse(raw.code2, slots, 2),
     };
   }
 

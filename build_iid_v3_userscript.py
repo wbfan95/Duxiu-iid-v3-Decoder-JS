@@ -23,6 +23,8 @@ DECODE_PROFILES = (
      "slot_key_column": "v3_128_fallback_a_slot_key", "final_2digit_table": "fallback"},
     {"kind": "128-v3-fallback-b", "iid_hex_length": 128, "slot_key_slice_start": 48, "slot_key_slice_end": 50,
      "slot_key_column": "v3_128_fallback_b_slot_key", "final_2digit_table": "primary"},
+    {"kind": "128-v3-fallback-c", "iid_hex_length": 128, "slot_key_slice_start": 48, "slot_key_slice_end": 50,
+     "slot_key_column": "v3_128_fallback_c_slot_key", "final_2digit_table": "fallback_c"},
     {"kind": "112-v3", "iid_hex_length": 112, "slot_key_slice_start": 48, "slot_key_slice_end": 50,
      "slot_key_column": "v3_112_slot_key", "final_2digit_table": "fallback"},
     {"kind": "144-v3", "iid_hex_length": 144, "slot_key_slice_start": 54, "slot_key_slice_end": 56,
@@ -66,16 +68,23 @@ def build_payload(codebook_dir: Path) -> dict[str, Any]:
     slots112, code2_112 = load_selector_arrays(codebook_dir / "final_2digit_fallback_selector5_by_shift_slot.tsv")
     if slots112 != slots2:
         raise SystemExit("112 2digit slot order differs from the 128 slot order.")
+    slots_fallback_c, code2_fallback_c = load_selector_arrays(
+        codebook_dir / "final_2digit_fallback_c_selector5_by_shift_slot.tsv"
+    )
+    if slots_fallback_c != slots2:
+        raise SystemExit("Fallback C 2digit slot order differs from the primary slot order.")
 
     slot_key_maps = load_slot_key_maps(codebook_dir / "layout_slot_key_to_shift_slot.tsv")
     return {
         "shared": {
             "slots": slots3,
             "code3": code3,
+            "code2": code2,
         },
         "final_2digit_tables": {
             "primary": {"slots": slots2, "code2": code2},
             "fallback": {"slots": slots112, "code2": code2_112},
+            "fallback_c": {"slots": slots_fallback_c, "code2": code2_fallback_c},
         },
         "profiles": [
             {**profile, "slot_key_to_shift_slot": slot_key_maps.get(profile.get("slot_key_column", ""), {})}
